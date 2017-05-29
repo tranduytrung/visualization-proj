@@ -1,0 +1,32 @@
+{
+  "name": "visualization-proj",
+  "version": "1.0.0",
+  "description": "the projects for visualization subject at JVN",
+  "main": "index.js",
+  "scripts": {
+    "dev": "./node_modules/.bin/gulp dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tranduytrung/visualization-proj.git"
+  },
+  "keywords": [
+    "visualization",
+    "machine",
+    "learning",
+    "data",
+    "graph",
+    "sankey"
+  ],
+  "author": "tranduytrung",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tranduytrung/visualization-proj/issues"
+  },
+  "homepage": "https://github.com/tranduytrung/visualization-proj#readme",
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-connect": "^5.0.0"
+  }
+}
