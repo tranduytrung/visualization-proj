@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Bar Chart</title>
+        <link type="text/css" href="scatterchart.css" ref="stylesheet" />
+        <style type="text/css">
+            .bar {
+              fill: steelblue;
+            }
+
+            .bar:hover {
+              fill: brown;
+            }
+
+            .axis {
+              font: 10px sans-serif;
+            }
+
+            .axis path,
+            .axis line {
+              fill: none;
+              stroke: #000;
+              shape-rendering: crispEdges;
+            }
+
+        </style>
+    </head>
+    <body>
+        <!--keeping in mind the script that contains your transfered code needs to be put at the very bottom of the page right before the ending of the body tag. Its always a good idea to put the script that links to the d3 library right above your written script. Reason being, is if you put your script in the head tags of the html page, the elements it searches for do not exist yet. Everything is synchronous when it come to the DOM unless specified.-->
+
+        
+        <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
+        <script type="text/javascript" src="script/barchart2.js"></script>
+    </body>
+</html>
