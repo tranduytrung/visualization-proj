@@ -1,0 +1,46 @@
+{
+	"datapoints": [
+				{"x": 5, "y": 2, "label": "red"},
+				{"x": 3, "y": 1, "label": "red"},
+				{"x": 8, "y": 2.5, "label": "red"},
+				{"x": 2, "y": 2, "label": "red"},
+				{"x": 1, "y": 2, "label": "blue"},
+				{"x": 10, "y": 3, "label": "blue"},
+				{"x": 15, "y": 7, "label": "blue"},
+				{"x": 9, "y": 4, "label": "blue"},
+	],
+	"iterators": [
+		{
+			"iterator": 1,
+			"size_of_points": [
+				{"size": 1.1},
+				{"size": 1.2},
+				{"size": 1},
+				{"size": 1.2},
+				{"size": 1.2},
+				{"size": 1.2},
+				{"size": 1},
+				{"size": 1}
+			],
+			"lines": [
+				{"a": 2, "b": 3}
+			]
+		},
+		{
+			"iterator": 2,
+			"size_of_points": [
+				{"size": 1.4},
+				{"size": 1.2},
+				{"size": 1},
+				{"size": 1.4},
+				{"size": 1.2},
+				{"size": 1},
+				{"size": 1},
+				{"size": 1}
+			],
+			"lines": [
+				{"a": 2, "b": -3}
+			]
+		},
+	]
+}

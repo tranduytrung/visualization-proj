@@ -4,13 +4,13 @@
 
 <meta charset="utf-8">
 <title>SANKEY Experiment</title>
-<link href="index.css" rel="stylesheet"/>
+<link href="css/sankey.css" rel="stylesheet"/>
 </head>
 
 <body>
     <p id="chart">
         <script src="http://d3js.org/d3.v3.js"></script>
-        <script src="sankey.js"></script>
+        <script src="script/sankey.js"></script>
         <script>
             var units = "Widgets";
 
@@ -39,7 +39,7 @@
             var path = sankey.link();
 
             // load the data
-            d3.json("sankeygreenhouse.json", function (error, graph) {
+            d3.json("input/sankeygreenhouse.json", function (error, graph) {
 
                 var nodeMap = {};
                 graph.nodes.forEach(function (x) { nodeMap[x.name] = x; });
