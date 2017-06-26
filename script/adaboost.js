@@ -1,94 +1,46 @@
 // custom variables
-var margin = {top: 20, right: 20, bottom: 60, left: 60};
-var width = 950;
+var margin = {top: 20, right: 20, bottom: 60, left: 30};
+var width = 600;
 var height = 600;
-var speed = 50;
-var datapoints;
+var speed = 1000;
 var iterators;
-var states = {"start": -1, "finished": -2};
-var current_state = states.start;
+var states = {"initial": 0, "start": 1, "running": 2, "stop": 3, "finished": 4};
+var current_state = states.initial;
+var current_iterator = -1;
 var timer;
 var svg;
 
-data = {
-    "datapoints": [
-                {"x": 5, "y": 2, "label": "red"},
-                {"x": 3, "y": 1, "label": "red"},
-                {"x": 8, "y": 2.5, "label": "red"},
-                {"x": 2, "y": 2, "label": "red"},
-                {"x": 1, "y": 2, "label": "blue"},
-                {"x": 10, "y": 3, "label": "blue"},
-                {"x": 15, "y": 7, "label": "blue"},
-                {"x": 9, "y": 4, "label": "blue"},
-    ],
-    "iterators": [
-        {
-            "iterator": 1,
-            "size_of_points": [1, 1.5, 1.2, 1.5, 1.8, 1, 1, 1.2],
-            "lines": [
-                {"a": 0.4, "b": 1, "label_upper": "red", "label_lower": "blue"}
-            ]
-        },
-        {
-            "iterator": 2,
-            "size_of_points": [1.6, 1.3, 1, 1.5, 2, 1.6, 1.8, 1],
-            "lines": [
-                {"a": 0.5, "b": 0.8, "label_upper": "red", "label_lower": "blue"}
-            ]
-        },
+var max_x_axis = 10;
+var max_y_axis = 10;
 
-        {
-            "iterator": 3,
-            "size_of_points": [1.6, 1.3, 1.9, 1.5, 2, 1.2, 1.8, 2],
-            "lines": [
-                {"a": 0.8, "b": 0.8, "label_upper": "blue", "label_lower": "red"}
-            ]
-        },
-    ]
-};
+var color_point = {"blue": "#1f77b4", "red": "#ff7f0e"}
+var color_region = {"blue": "#aec7e8", "red": "#ffbb78"}
+	 
+var rScale = d3.scale.linear().domain([0,width]).range([0,20]);
+var rCircle = 200;
+var o = d3.scale.linear().domain([10000,100000]).range([.5,1]);
+
+var lineId = 'regline';
+
+data = [];
 
 // init the graph
-current_state = states.start;
-loadData();
+current_state = states.initial;
+initialGraph();
 
-// generate random dataset
-function loadData() {
-    datapoints = data.datapoints;
-    iterators = data.iterators;
+$(document).keydown(function(event){
+    if(event.which=="17")
+        cntrlIsPressed = true;
+});
 
-    setDotSize();
+$(document).keyup(function(){
+    cntrlIsPressed = false;
+});
 
-    // draw data
-    drawGraph();
+var cntrlIsPressed = false;
 
-    // var data = d3.json("/input/data.adaboost.json", function(data) {
-    //     datapoints = data.datapoints;
-    //     iterators = data.iterators;
-        
-    //     draw data
-    //     drawGraph();
-
-    //     enable play button
-    //     TODO
-    // });
-}
-
-function setDotSize(){
-    // set default size for each data point if current state is "start"
-    // otherwise, set size of current iterator
-    for (var i = 0; i < datapoints.length; i++) {
-        if (current_state == states.start) {
-            datapoints[i].size = 1;
-        } else {
-            datapoints[i].size = iterators[current_state].size_of_points[i];
-        }
-        
-    }
-
-}
-
-// create scatter chart in svg
-function drawGraph() {
+// create empty graph in svg
+function initialGraph() {
     adaboost_graph = document.getElementById("adaboost_graph").innerHTML = "";
     while (adaboost_graph.firstChild) {
         adaboost_graph.removeChild(adaboost_graph.firstChild);
@@ -108,7 +60,7 @@ function drawGraph() {
     // xAxis
     var xScale = d3.scale.linear()
                 .range([0, width])
-                .domain([0, d3.max(datapoints, function(d) { return d.x; })]);
+                .domain([0, max_x_axis]);
 
     var xAxis = d3.svg.axis()
         .scale(xScale)
@@ -124,7 +76,7 @@ function drawGraph() {
     // yAxis
     var yScale = d3.scale.linear()
                 .range([height, 0])
-                .domain([0, d3.max(datapoints, function(d) { return d.y; })]);
+                .domain([0, max_y_axis]);
 
     var yAxis = d3.svg.axis()
         .scale(yScale)
@@ -135,93 +87,260 @@ function drawGraph() {
         // apply css .axis to "y Axis"
         .attr("class", "y axis")
         .call(yAxis);
+	
+	//draw dashed lines
+	g.selectAll(".h").data(d3.range(0,10,1)).enter()
+	  .append("line").classed("h",1)
+	  .attr("x1", 0).attr("x2",height)
+	  .attr("y1", yScale).attr("y2", yScale)
+	  
+	g.selectAll(".v").data(d3.range(0,10,1)).enter()
+	  .append("line").classed("v",1)
+	  .attr("y1", 0).attr("y2",width)
+	  .attr("x1", xScale).attr("x2", xScale)
+	
+	svg.on('contextmenu', function() {
+		//handle right click
+		drawCircle(d3.mouse(this)[0], d3.mouse(this)[1], color_point.red);
+		//stop showing browser menu
+		d3.event.preventDefault();
+	});
 
-    // setup fill color
-    var color = d3.scale.category10();
-
-    // draw bestfit line
-    if (current_state > states.start){
-        for (var i = 0; i < iterators[current_state].lines.length; i++) {            
-            var line = iterators[current_state].lines[i];
-            var x1 = xScale.domain()[0];
-            var y1 = line.a * x1 + line.b;
-            var x2 = xScale.domain()[1];
-            var y2 = line.a * x2 + line.b;
-            line_data = [ 
-                {"x": x1, "y": y1 }, 
-                {"x": x2, "y": y2 }
-            ];
-
-            var below_area = d3.svg.area()
-                .x(function(d) { return xScale(d.x); })
-                .y0(height)
-                .y1(function(d) { return yScale(d.y); });
-
-            // define the line
-            var valueline = d3.svg.line()
-                .x(function(d) { return xScale(d.x); })
-                .y(function(d) { return yScale(d.y); });
-
-
-            g.append("path")      // Add the valueline path
-                .datum(line_data)
-                .attr("d", below_area)
-                .style("fill", d3.rgb(color(line.label_lower)).brighter(1));
-
-            // area above
-            var above_area = d3.svg.area()
-                .x(function(d) { return xScale(d.x); })
-                .y0(0)
-                .y1(function(d) { return yScale(d.y); });
-
-            g.append("path")      // Add the valueline path
-                .datum(line_data)
-                .attr("d", above_area)
-                .style("fill", d3.rgb(color(line.label_upper)).brighter(1));
-        }
-    }
-
-    // draw scatter chart
-    g.selectAll("scatter-dots")
-        .data(datapoints)
-        .enter()
-        .append("svg:circle")
-        .attr("class", "bar")
-        .attr("cx", function(d) { return xScale(d.x); })
-        .attr("cy", function(d) { return yScale(d.y); })
-        .attr("r", function(d) { return d.size * 8; })
-        .style("fill", function(d) { return color(d.label); }) ;
+	//click event: draw blue circle
+	svg.on('click', function(){
+		drawCircle(d3.mouse(this)[0], d3.mouse(this)[1], color_point.blue);
+	});
+	
 }
 
-function displayResult() {
-    start_idx = 0;    
-    timer = setInterval(function() {
-        if (start_idx < iterators.length) {
-            current_state = start_idx;
-            setDotSize();
-            drawGraph();
-            start_idx++;
+function enableButtons(){
+	buttonStates = {"play": false, "stop": false, "reset": false, "clear": false, "speed": true};
+	textButtons = {"play": "Play"}
+	
+	switch(current_state) {
+		case states.initial:
+			buttonStates.play = false;
+			buttonStates.stop = false;
+			buttonStates.reset = false;
+			buttonStates.clear = true;
+			buttonStates.speed = true;
+			textButtons.play = "Play";
+			break;
+		case states.start:
+			buttonStates.play = true;
+			buttonStates.stop = false;
+			buttonStates.reset = false;
+			buttonStates.clear = true;
+			buttonStates.speed = true;
+			textButtons.play = "Play";
+			break;
+		case states.running:
+			buttonStates.play = false;
+			buttonStates.stop = true;
+			buttonStates.reset = true;
+			buttonStates.clear = true;
+			buttonStates.speed = false;
+			textButtons.play = "Play";			
+			break;
+		case states.stop:
+			buttonStates.play = true;
+			buttonStates.stop = false;
+			buttonStates.reset = true;
+			buttonStates.clear = true;
+			buttonStates.speed = false;
+			textButtons.play = "Resume";
+			break;
+		case states.finished:
+			buttonStates.play = false;
+			buttonStates.stop = false;
+			buttonStates.reset = true;
+			buttonStates.clear = true;			
+			buttonStates.speed = true;
+			textButtons.play = "Play";
+			break;
+		default:
+			buttonStates.play = false;
+			buttonStates.stop = false;
+			buttonStates.reset = false;	
+			buttonStates.clear = false;		
+			buttonStates.speed = true;
+			textButtons.play = "Play";
+	}
 
+	$('#btnPlay').prop('disabled', !buttonStates.play);
+	$('#btnPlay').text(textButtons.play);
+	
+	$('#btnStop').prop('disabled', !buttonStates.stop);
+	$('#btnReset').prop('disabled', !buttonStates.reset);
+	$('#btnClear').prop('disabled', !buttonStates.clear);
+	$('#speed').prop('disabled', !buttonStates.speed);
+}
+
+function drawCircle(mouse_x, mouse_y, color){
+	if(mouse_x >= (margin.left + rScale(rCircle)) 
+		&& mouse_x <= (margin.left + width - rScale(rCircle)) 
+		&& mouse_y >= (margin.top + rScale(rCircle)) 
+		&& mouse_y <= (margin.top + height - rScale(rCircle))){
+		//push new data point to data array
+		data.push({"id": "point_" + (data.length + 1), "x": mouse_x, "y": mouse_y, "radius": rCircle, "fill": color, "opacity": 90000});
+
+		//select each circle and append the data
+		var selection = svg.selectAll("circle").data(data)
+
+		//update selection and draw new circle
+		selection.enter()
+		.append("circle")
+		.attr("id",function(d) {return d.id;})
+		.attr("cx",function(d) {return d.x;})
+		.attr("cy",function(d) {return d.y;})
+		.attr("r",function(d) {return rScale(d.radius);})
+		.style("fill",function(d) {return d.fill;})
+		.style("opacity",function(d) { return o(+d.opacity);});
+
+		//exit selection
+		selection.exit().remove()
+
+		if (data.length > 2) {
+			current_state = states.start;
+		}
+		enableButtons();
+	}
+}
+
+function transition() {
+    svg.selectAll("circle")
+        .data(data)
+        .transition()
+        .duration(1500)
+        .style("fill",function(d) {return d.fill;})
+        .attr("r",function(d) {return rScale(d.radius);})
+        .attr("cx",function(d) {return d.x;})
+        .attr("cy",function(d) {return d.y;});
+	
+	if (current_iterator == 0){
+		drawline(iterators[current_iterator].line);
+	} else {
+		transitionline(iterators[current_iterator].line);
+	}
+}
+
+var transitionline = function(lsCoef){
+	var a = lsCoef.a;
+	var b = lsCoef.b;
+	
+	var lineFunction = d3.svg.line()
+		.x(function(d) { return d.x; })
+		.y(function(d) { return d.y; });
+
+	d3.select('#' + lineId)
+		.transition()
+		.duration(1500)
+		.attr("d", lineFunction([{"x": margin.left, "y": a * margin.left + b},
+								{"x": (margin.left + width), "y": a * (margin.left + width) + b}]));
+}
+
+function drawline(lsCoef){
+	var a = lsCoef.a;
+	var b = lsCoef.b;
+	
+	var lineFunction = d3.svg.line()
+		.x(function(d) { return d.x; })
+	.y(function(d) { return d.y; });
+
+	svg.append('path')
+		.attr("d", lineFunction([{"x": margin.left, "y": a * margin.left + b},
+								{"x": (margin.left + width), "y": a * (margin.left + width) + b}]))
+		.attr("stroke-width", 2)
+		.attr("stroke", "black")
+		.attr('id', lineId);
+}
+
+function displayResult() {    
+    timer = setInterval(function() {
+        if (current_iterator < iterators.length) {
+			// update data
+			$.each(data, function(i, item) {
+				data[i].radius = data[i].radius + rCircle * iterators[current_iterator].size_of_points[i] * 2;
+			})
+            transition();
+            current_iterator++;
         } else {
             current_state = states.finished;
             clearInterval(timer);
+			enableButtons();
         }
         
     }, speed);
 };
 
-// reset
-document.getElementById("reset").addEventListener("click", function() {
-    clearInterval(timer);
-
-    speed = document.getElementById("speed").value;
-    current_state = states.start;
-    loadData();
-});
-
 // play
-document.getElementById("play").addEventListener("click", function() {
+document.getElementById("btnPlay").addEventListener("click", function() {
+	if (current_state == states.start) {
+		current_iterator = 0;
+	}
+	current_state = states.running;
+	enableButtons();
+	
+	// run adaboost
+	iterators =  [
+        {
+            "iterator": 1,
+            "size_of_points": [0.1, 0.5, 0.2, 0, 0, 0, 0, 0.2],
+			"line": { "a": 0.1, "b": 1}
+		},
+		{
+            "iterator": 2,
+            "size_of_points": [0.3, 0.4, 0, 0, 0, 0, 0, 0.3],
+			"line": { "a": 0.5, "b": 2}
+		},
+		{
+            "iterator": 3,
+            "size_of_points": [0, 0, 0, 0, 0.5, 0.2, 0.2, 0.1],
+			"line": { "a": 1, "b": 3}
+		},
+		{
+            "iterator": 4,
+            "size_of_points": [0, 0, 0, 0.1, 0.3, 0.5, 0.1, 0],
+			"line": { "a": 2, "b": 4}
+		}];
+		
     clearInterval(timer);
-    speed = document.getElementById("speed").value;
+    speed = $("#speed").val();
     displayResult();
 });
+
+// reset
+document.getElementById("btnReset").addEventListener("click", function() {
+	current_iterator = -1;
+	current_state = states.start;
+	enableButtons();
+	clearInterval(timer);
+	
+	// update data
+	$.each(data, function(i, item) {
+		data[i].radius = rCircle;
+	})
+	
+	// remove line
+	$('#' + lineId).remove();
+
+	transition();	
+});
+
+// stop
+document.getElementById("btnStop").addEventListener("click", function() {
+	current_state = states.stop;
+	enableButtons();
+    clearInterval(timer);
+});
+
+// clear
+document.getElementById("btnClear").addEventListener("click", function() {
+	current_state = states.initial;
+	current_iterator = -1;
+	clearInterval(timer);
+	enableButtons();
+	data = [];
+    initialGraph();
+});
+
