@@ -29,6 +29,6 @@ input {
 	background-color: #f5f5f5;
 }
 
-.bg-warning, .bg-info{
+.bg-warning, .bg-info, .bg-success{
 	padding: 15px;
 }

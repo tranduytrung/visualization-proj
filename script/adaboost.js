@@ -179,7 +179,7 @@ function checkCirclePosition(mouse_x, mouse_y, color) {
 		//push new data point to data array
 		x = xScale.invert(mouse_x - margin.left);
 		y = yScale.invert(mouse_y - margin.top);
-		data.push({"id": "point_" + (data.length + 1), "x": x, "y": y, "radius": rCircle, "fill": color, "opacity": 90000});
+		data.push({"id": "point_" + (data.length + 1), "x": x, "y": y, "radius": rCircle, "fill": color});
 		
 		drawCircles();
 	}
@@ -196,8 +196,7 @@ function drawCircles(){
 	.attr("cx",function(d) {return xScale(d.x);})
 	.attr("cy",function(d) {return yScale(d.y);})
 	.attr("r",function(d) {return rScale(d.radius);})
-	.style("fill",function(d) {return d.fill;})
-	.style("opacity",function(d) { return o(+d.opacity);});
+	.style("fill",function(d) {return d.fill;});
 
 	//exit selection
 	selection.exit().remove()
@@ -229,35 +228,92 @@ var lineFunction = d3.svg.line()
 		.y(function(d) { return yScale(d.y); });
 
 var transitionline = function(lsCoef){
-	var a = lsCoef.a;
-	var b = lsCoef.b;
-
+	line = calculateLine(lsCoef);
 	d3.select('#' + lineId)
 		.transition()
 		.duration(1500)
-		.attr("d", lineFunction([{"x": 0, "y": b},
-								{"x": max_x_axis, "y": a * max_x_axis + b}]));
+		.attr("d", lineFunction([{"x": line.x1, "y": line.y1},
+								{"x": line.x2, "y": line.y2}]));
 }
 
-function drawline(lsCoef){
-	var a = lsCoef.a;
-	var b = lsCoef.b;
+function drawline(lsCoef){	
+	line = calculateLine(lsCoef);
 	
 	g.append('path')
-		.attr("d", lineFunction([{"x": 0, "y": b},
-								{"x": max_x_axis, "y": a * max_x_axis + b}]))
+		.attr("d", lineFunction([{"x": line.x1, "y": line.y1},
+								{"x": line.x2, "y": line.y2}]))
 		.attr("stroke-width", 2)
 		.attr("stroke", "black")
 		.attr('id', lineId);
 }
 
+function calculateLine(lsCoef) {
+	var a = lsCoef.a;
+	var b = lsCoef.b;
+	var line = {};
+	
+	// calculate top left point: try with x = 0, y = 0, y = max
+	// case 1: x = 0
+	y_temp = b;
+	if (y_temp >= 0 && y_temp <= max_y_axis) {
+		line.x1 = 0;
+		line.y1 = y_temp;
+	} else {
+		// case 2: y = 0
+		x_temp = -b/a;
+		if (x_temp >= 0 && x_temp <= max_x_axis) {
+			line.x1 = x_temp;
+			line.y1 = 0;
+		} else {
+			// case 3: y = max
+			line.y1 = max_y_axis;
+			line.x1 = (line.y1 - b)/a;
+		}
+	}
+	
+	// calculate right bottom point
+	// case 1: x = max
+	y_temp = a * max_x_axis + b;
+	if (y_temp >= 0 && y_temp <= max_y_axis) {
+		line.x2 = max_x_axis;
+		line.y2 = y_temp;
+	} else {
+		// case 2: y = 0
+		x_temp = -b/a;
+		if (x_temp >= 0 && x_temp <= max_x_axis && line.y1 != 0) {
+			line.x2 = x_temp;
+			line.y2 = 0;
+		} else {
+			// case 3: y = max
+			line.y2 = max_y_axis;
+			line.x2 = (line.y2 - b)/a;
+		}
+	}
+	console.log(line);
+	return line
+}
+
 function displayResult() {    
     timer = setInterval(function() {
         if (current_iterator < iterators.length) {
-			//TODO: scale radius: 0.25 + 0.75 * (x - min_weight)/(max_weight - min_weight)
+			$('#txtIteratorInfo').html('Iterator: ' + (current_iterator + 1));
+			
+			var weight_points = iterators[current_iterator].size_of_points;
+			// scale radius: 0.25 + 0.75 * (x - min_weight)/(max_weight - min_weight)
+			var max_weight = weight_points[0];
+			var min_weight = weight_points[0];
+			$.each(weight_points, function(i){
+				if (weight_points[i] > max_weight)
+					max_weight = weight_points[i];
+				if (weight_points[i] < min_weight)
+					min_weight = weight_points[i];
+			})
+			var ratio = max_weight == min_weight ? 0 : 1/(max_weight - min_weight);
+			var wScale = d3.scale.linear().range([0, rCircle/2]).domain([min_weight, max_weight]);
+			
 			// update data
 			$.each(data, function(i, item) {
-				data[i].radius = data[i].radius + rCircle * iterators[current_iterator].size_of_points[i] * 2;
+				data[i].radius = data[i].radius + wScale(weight_points[i]);
 			})
             transition();
             current_iterator++;
@@ -288,20 +344,7 @@ document.getElementById("btnPlay").addEventListener("click", function() {
 
 // reset
 document.getElementById("btnReset").addEventListener("click", function() {
-	current_iterator = -1;
-	current_state = states.start;
-	enableButtons();
-	clearInterval(timer);
-	
-	// update data
-	$.each(data, function(i, item) {
-		data[i].radius = rCircle;
-	})
-	
-	// remove line
-	$('#' + lineId).remove();
-
-	drawCircles();
+	reset();
 });
 
 // stop
@@ -377,6 +420,17 @@ function reset(){
 
 $("#btnGenerateData").on('click', function () {
 	var nbPoints = $('#txtNumberPoint').val();
+	for(i = 0; i < nbPoints; i++){
+		x = Math.random() * max_x_axis;
+		y = Math.random() * max_y_axis;
+		label = Math.floor(Math.random() * 2) + 1;
+		color = label == 1 ? color_point.blue : color_point.red;
+		data.push({"id": "point_" + (i + 1), "x": x, "y": y, "radius": rCircle, "fill": color});
+	}
+	current_state = states.start;
+	enableButtons();
+	
+	drawCircles();
 });
 
 function adaboost_func(dataset) {
@@ -392,13 +446,13 @@ function adaboost_func(dataset) {
 	for(i = 0; i < 5; i++){
 		// create simple classifier
 		classifier = simple_classifier(dataset, weights);
+					
+		// compute weight of the classifier
+		alpha = 0.5 * Math.log((1 - classifier.error)/classifier.error);
 		
 		iterators.push({"iterator": (i+1),
             "size_of_points": weights,
-			"line": { "a": classifier.a, "b": classifier.b}});
-			
-		// compute weight of the classifier
-		alpha = 0.5 * Math.log((1 - classifier.error)/classifier.error);
+			"line": { "a": classifier.a, "b": classifier.b, "alpha": alpha}});
 		
 		// update sample weights
 		new_weights = [];
@@ -477,4 +531,18 @@ function simple_classifier(dataset, weights){
 	classiferResult.error = 0.5 - 0.5 * classiferResult.error;
 	
 	return classiferResult;
+}
+
+$("#btnExportData").on('click', function() {
+	var export_data = $.map(data, function(item) {
+		return {"x": item.x, "y": item.y, "label": item.fill == color_point.blue ? 1 : -1}
+	});
+	saveText(JSON.stringify(export_data), 'export_data.json');
+});
+
+function saveText(text, fileName) {
+	var a = document.createElement('a');
+	a.setAttribute('href', 'data:text/plain;charset=utf-u,' + encodeURIComponent(text));
+	a.setAttribute('download', fileName);
+	a.click();
 }
