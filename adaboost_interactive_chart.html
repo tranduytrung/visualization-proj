@@ -13,12 +13,51 @@
 			<div class="page-header">
 				<h1>Interactive Adaboost Algorithm</h1>
 			</div>
-			<div id="info" class="bg-warning">
-				<p>Click on the grid to create at least 3 data points, then click Play button to run AdaBoost algorithm.</p>
-				<ul>
-					<li>Left-Click: Blue circle</li>
-					<li>Right-Click: Orange circle </li>
-				</ul>					
+			<div>
+				<ul class="nav nav-pills" role="tablist">
+					<li role="presentation" class="active">
+						<a href="#generate-manually" aria-controls="generate-manually" role="tab" data-toggle="pill">Generate Data Manually</a>
+					</li>
+					<li role="presentation">
+						<a href="#generate-randomly" aria-controls="generate-randomly" role="tab" data-toggle="pill">Generate Data Randomly</a>
+					</li>
+					<li role="presentation">
+						<a href="#load-from-file" aria-controls="load-from-file" role="tab" data-toggle="pill">Load Data From File</a>
+					</li>
+				</ul>
+				<!-- Tab panes -->
+				<div class="tab-content">
+					<div role="tabpanel" class="tab-pane fade in active bg-warning" id="generate-manually">
+						<p>Click on the grid to create at least 3 data points, then click Play button to run AdaBoost algorithm.</p>
+						<ul>
+							<li>Left-Click: Blue circle</li>
+							<li>Right-Click: Orange circle </li>
+						</ul>
+					</div>
+					<div role="tabpanel" class="tab-pane fade bg-warning" id="generate-randomly">
+						<form class="form-inline">
+							<div class="form-group">
+								<label for="txtNumberPoint">Number of points:</label>
+								<input type="text" class="form-control" id="txtNumberPoint">
+							</div>
+							<button id="btnGenerateData" type="button" class="btn btn-default">Generate</button>
+						</form>
+					</div>
+					<div role="tabpanel" class="tab-pane fade" id="load-from-file">
+						<div class="row bg-warning">
+							<div class="col-md-8">
+							<form class="form-inline">
+								<div class="form-group">
+									<label for="inputFile" class="control-label">Select File</label>
+									<input type="file" class="form-control file" id="inputFile" placeholder="Select File...">
+								</div>
+								<button id="btnLoadFile" type="button" class="btn btn-default">Load</button>
+							</form>
+							</div>
+							<p id="errorLoadingFile"></p>
+						</div>
+					</div>
+				</div>
 			</div>
 			<div class="row">
 				<div class="col-md-8">
@@ -51,6 +90,7 @@
 		<!--keeping in mind the script that contains your transfered code needs to be put at the very bottom of the page right before the ending of the body tag. Its always a good idea to put the script that links to the d3 library right above your written script. Reason being, is if you put your script in the head tags of the html page, the elements it searches for do not exist yet. Everything is synchronous when it come to the DOM unless specified.-->
 		
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 		<script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
 		<script type="text/javascript" src="script/adaboost.js"></script>
     </body>
