@@ -3,6 +3,7 @@ var margin = {top: 20, right: 20, bottom: 60, left: 30};
 var width = Math.floor($('#adaboost_graph').width()/100) * 100;
 var height = width;
 var speed = 1000;
+var max_nb_iterator = 5;
 var iterators;
 var states = {"initial": 0, "start": 1, "running": 2, "stop": 3, "finished": 4};
 var current_state = states.initial;
@@ -23,11 +24,10 @@ var yScale = d3.scale.linear().range([height, 0]).domain([0, max_y_axis]);
 var rScale = d3.scale.linear().range([0, width]).domain([0, 20]);
 var rCircle = 0.25;
 
-var o = d3.scale.linear().domain([10000,100000]).range([.5,1]);
-
-var lineId = 'regline';
+var oScale = d3.scale.linear().range([.5,1]).domain([10000,100000]);
 
 data = [];
+lines = [];
 
 // init the graph
 current_state = states.initial;
@@ -109,7 +109,7 @@ function initialGraph() {
 }
 
 function enableButtons(){
-	buttonStates = {"play": false, "stop": false, "reset": false, "clear": false, "speed": true};
+	buttonStates = {"play": false, "stop": false, "reset": false, "clear": false, "speed": true, "nbIterator": true};
 	textButtons = {"play": "Play"}
 	
 	switch(current_state) {
@@ -119,6 +119,7 @@ function enableButtons(){
 			buttonStates.reset = false;
 			buttonStates.clear = true;
 			buttonStates.speed = true;
+			buttonStates.nbIterator = true;
 			textButtons.play = "Play";
 			break;
 		case states.start:
@@ -127,6 +128,7 @@ function enableButtons(){
 			buttonStates.reset = false;
 			buttonStates.clear = true;
 			buttonStates.speed = true;
+			buttonStates.nbIterator = true;
 			textButtons.play = "Play";
 			break;
 		case states.running:
@@ -135,6 +137,7 @@ function enableButtons(){
 			buttonStates.reset = true;
 			buttonStates.clear = true;
 			buttonStates.speed = false;
+			buttonStates.nbIterator = false;
 			textButtons.play = "Play";			
 			break;
 		case states.stop:
@@ -143,6 +146,7 @@ function enableButtons(){
 			buttonStates.reset = true;
 			buttonStates.clear = true;
 			buttonStates.speed = false;
+			buttonStates.nbIterator = false;
 			textButtons.play = "Resume";
 			break;
 		case states.finished:
@@ -151,6 +155,7 @@ function enableButtons(){
 			buttonStates.reset = true;
 			buttonStates.clear = true;			
 			buttonStates.speed = true;
+			buttonStates.nbIterator = true;
 			textButtons.play = "Play";
 			break;
 		default:
@@ -159,6 +164,7 @@ function enableButtons(){
 			buttonStates.reset = false;	
 			buttonStates.clear = false;		
 			buttonStates.speed = true;
+			buttonStates.nbIterator = true;
 			textButtons.play = "Play";
 	}
 
@@ -169,6 +175,7 @@ function enableButtons(){
 	$('#btnReset').prop('disabled', !buttonStates.reset);
 	$('#btnClear').prop('disabled', !buttonStates.clear);
 	$('#speed').prop('disabled', !buttonStates.speed);
+	$('#txtNbIterators').prop('disabled', !buttonStates.nbIterator);
 }
 
 function checkCirclePosition(mouse_x, mouse_y, color) {
@@ -208,6 +215,7 @@ function drawCircles(){
 }
 
 function transition() {
+	// transition circles
     g.selectAll("circle")
         .data(data)
         .transition()
@@ -215,82 +223,171 @@ function transition() {
         .style("fill",function(d) {return d.fill;})
         .attr("r",function(d) {return rScale(d.radius);})
         .attr("cx",function(d) {return xScale(d.x);})
-        .attr("cy",function(d) {return yScale(d.y);});
+        .attr("cy",function(d) {return yScale(d.y);})
+		; 
 	
+	lines.push(calculateLineArea(iterators[current_iterator].line));
+	
+	// draw previous line - then move to new position
+	lineId = "line_" + (current_iterator + 1);
 	if (current_iterator == 0){
-		drawline(iterators[current_iterator].line);
+		drawLineAndArea(lines[0], lineId, true);
 	} else {
-		transitionline(iterators[current_iterator].line);
+		drawLineAndArea(lines[current_iterator - 1], lineId, false);
+		transitionLineAndArea(lines[current_iterator], lineId);
 	}
 }
 var lineFunction = d3.svg.line()
 		.x(function(d) { return xScale(d.x); })
 		.y(function(d) { return yScale(d.y); });
 
-var transitionline = function(lsCoef){
-	line = calculateLine(lsCoef);
-	d3.select('#' + lineId)
-		.transition()
-		.duration(1500)
+// define the area
+var areaFunction = d3.svg.area()
+    .x(function(d) { return xScale(d.x); })
+    .y0(height)
+    .y1(function(d) { return yScale(d.y); });
+
+// define the area
+var aboveAreaFunction = d3.svg.area()
+    .x(function(d) { return xScale(d.x); })
+    .y0(0)
+    .y1(function(d) { return yScale(d.y); });
+	
+function transitionLineAndArea(lineInfo, lineId){
+	line = lineInfo.line;
+	
+	var t0 = svg.transition().duration(1500).delay(1000);
+	
+	t0.select('#' + lineId)
 		.attr("d", lineFunction([{"x": line.x1, "y": line.y1},
-								{"x": line.x2, "y": line.y2}]));
+								{"x": line.x2, "y": line.y2}]))
+		.attr("stroke-width", 4 * oScale(line.weight))
+		.attr("opacity", oScale(line.weight));
+		
+	// transition area below line
+	t0.select('#area_below_line')
+		.attr("d", areaFunction(lineInfo.below_area))
+		.attr("fill", lineInfo.below_color);
+								
+	// transition area aove line
+	t0.select('#area_above_line')
+		.attr("d", aboveAreaFunction(lineInfo.above_area))
+		.attr("fill", lineInfo.above_color);
 }
 
-function drawline(lsCoef){	
-	line = calculateLine(lsCoef);
-	
+function drawLineAndArea(lineInfo, lineId, appendArea){
+	// draw line
+	line = lineInfo.line;
 	g.append('path')
 		.attr("d", lineFunction([{"x": line.x1, "y": line.y1},
 								{"x": line.x2, "y": line.y2}]))
-		.attr("stroke-width", 2)
-		.attr("stroke", "black")
+		.attr("stroke-width", 4 * oScale(line.weight))
+		.attr("stroke", "green")
+		.attr("opacity", oScale(line.weight))
+		.attr("fill", "none")
 		.attr('id', lineId);
+	
+	if (appendArea){		
+		// fill area below the line
+		g.append("path")
+			.attr("d", areaFunction(lineInfo.below_area))
+			.attr("fill", lineInfo.below_color)
+			.attr("opacity", 0.5)
+			.attr('id', "area_below_line");
+		
+		// fill area above the line
+		g.append("path")
+			.attr("d", aboveAreaFunction(lineInfo.above_area))
+			.attr("fill", lineInfo.above_color)
+			.attr("opacity", 0.5)
+			.attr('id', "area_above_line");
+	}
 }
 
-function calculateLine(lsCoef) {
-	var a = lsCoef.a;
-	var b = lsCoef.b;
+function calculateLineArea(lineInfo) {
+	var a = lineInfo.a;
+	var b = lineInfo.b;
+	
+	origin = b <= 0;
+	top_left = (b - max_y_axis) <= 0;
+	top_right = (a * max_x_axis + b - max_y_axis) <= 0;
+	bottom_right = (a * max_x_axis + b) <= 0;
+	
+	// the order of cases is important, we set higher priority for group of 3 points before group of 2 points
+	cases = [origin == !top_left && !top_left == !top_right && !top_right == !bottom_right,
+			origin == top_left && top_left == top_right && top_right == !bottom_right,
+			origin == top_left && top_left == bottom_right && bottom_right == !top_right ,
+			origin == top_right && top_right == bottom_right && bottom_right == !top_left,
+			origin == bottom_right && bottom_right == !top_left && !top_left == !top_right,
+			origin == top_left && top_left == !top_right && !top_right == !bottom_right];
+	correct_cases_idx = -1;
+	$.each(cases, function(i){
+		if (cases[i]) {
+			correct_cases_idx = i;
+			return false;
+		}
+	});
+	console.log(correct_cases_idx);
+	
 	var line = {};
+	var area_below = {};
+	var area_above = {};
+	var below_color, above_color;
 	
-	// calculate top left point: try with x = 0, y = 0, y = max
-	// case 1: x = 0
-	y_temp = b;
-	if (y_temp >= 0 && y_temp <= max_y_axis) {
-		line.x1 = 0;
-		line.y1 = y_temp;
-	} else {
-		// case 2: y = 0
-		x_temp = -b/a;
-		if (x_temp >= 0 && x_temp <= max_x_axis) {
-			line.x1 = x_temp;
-			line.y1 = 0;
-		} else {
-			// case 3: y = max
-			line.y1 = max_y_axis;
-			line.x1 = (line.y1 - b)/a;
-		}
-	}
+	switch(correct_cases_idx){
+		case 0:
+			line = {"weight": lineInfo.alpha, "x1": 0, "y1": b, "x2": -b/a, "y2": 0};
+			area_below = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			area_above = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}, {"x": max_x_axis, "y": 0}];
+			
+			// if origin belongs to negative region, set color of below region with negative; otherwise, set it with position color
+			below_color = origin ? lineInfo.negative_region : lineInfo.positive_region;
+			
+			break;
+		case 1:
+			line = {"weight": lineInfo.alpha, "x1": -b/a, "y1": 0, "x2": max_x_axis, "y2": max_x_axis * a + b};
+			area_below = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			area_above = [{"x": 0, "y": 0}, {"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			
+			below_color = origin ? lineInfo.positive_region : lineInfo.negative_region;			
+			break;
+		case 2:
+			line = {"weight": lineInfo.alpha, "x1": (max_y_axis - b)/a, "y1": max_y_axis, "x2": max_x_axis, "y2": max_x_axis * a + b};
+			area_below = [{"x": 0, "y": max_y_axis}, {"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			area_above = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			
+			below_color = origin ? lineInfo.negative_region : lineInfo.positive_region;			
+			break;		
+		case 3:
+			line = {"weight": lineInfo.alpha, "x1": 0, "y1": b, "x2": (max_y_axis - b)/a, "y2": max_y_axis};
+			area_below = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}, {"x": max_x_axis, "y": max_y_axis}];
+			area_above = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			
+			below_color = origin ? lineInfo.negative_region : lineInfo.positive_region;
+			break;
+		case 4:
+			line = {"weight": lineInfo.alpha, "x1": 0, "y1": b, "x2": max_x_axis, "y2": max_x_axis * a + b};
+			area_below = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			area_above = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			
+			below_color = origin ? lineInfo.negative_region : lineInfo.positive_region;
+			break;
+		case 5:
+			line = {"weight": lineInfo.alpha, "x1": (max_y_axis - b)/a, "y1": max_y_axis, "x2": -b/a, "y2": 0};
+			area_below = [{"x": 0, "y": max_y_axis}, {"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}];
+			area_above = [{"x": line.x1, "y": line.y1}, {"x": line.x2, "y": line.y2}, {"x": max_x_axis, "y": 0}];
+			
+			below_color = origin ? lineInfo.negative_region : lineInfo.positive_region;
+			break;
+	};
 	
-	// calculate right bottom point
-	// case 1: x = max
-	y_temp = a * max_x_axis + b;
-	if (y_temp >= 0 && y_temp <= max_y_axis) {
-		line.x2 = max_x_axis;
-		line.y2 = y_temp;
+	if (below_color == lineInfo.negative_region) {		
+		return {"line": line, "below_area": area_below, "above_area": area_above,
+				"below_color": below_color, "above_color": lineInfo.positive_region};
 	} else {
-		// case 2: y = 0
-		x_temp = -b/a;
-		if (x_temp >= 0 && x_temp <= max_x_axis && line.y1 != 0) {
-			line.x2 = x_temp;
-			line.y2 = 0;
-		} else {
-			// case 3: y = max
-			line.y2 = max_y_axis;
-			line.x2 = (line.y2 - b)/a;
-		}
+		return {"line": line, "below_area": area_below, "above_area": area_above,
+				"below_color": below_color, "above_color": lineInfo.negative_region};
 	}
-	console.log(line);
-	return line
 }
 
 function displayResult() {    
@@ -298,23 +395,13 @@ function displayResult() {
         if (current_iterator < iterators.length) {
 			$('#txtIteratorInfo').html('Iterator: ' + (current_iterator + 1));
 			
+			// update radius
 			var weight_points = iterators[current_iterator].size_of_points;
-			// scale radius: 0.25 + 0.75 * (x - min_weight)/(max_weight - min_weight)
-			var max_weight = weight_points[0];
-			var min_weight = weight_points[0];
-			$.each(weight_points, function(i){
-				if (weight_points[i] > max_weight)
-					max_weight = weight_points[i];
-				if (weight_points[i] < min_weight)
-					min_weight = weight_points[i];
-			})
-			var ratio = max_weight == min_weight ? 0 : 1/(max_weight - min_weight);
-			var wScale = d3.scale.linear().range([0, rCircle/2]).domain([min_weight, max_weight]);
-			
-			// update data
+			var wScale = scalePoint(weight_points);
 			$.each(data, function(i, item) {
-				data[i].radius = data[i].radius + wScale(weight_points[i]);
+				data[i].radius = wScale(weight_points[i]);
 			})
+			
             transition();
             current_iterator++;
         } else {
@@ -326,6 +413,33 @@ function displayResult() {
     }, speed);
 };
 
+function scalePoint(weight_points){
+	// scale radius: [min_weight, max_weight] -> [0, rCircle/2]
+	var max_weight = weight_points[0];
+	var min_weight = weight_points[0];
+	$.each(weight_points, function(i){
+		if (weight_points[i] > max_weight)
+			max_weight = weight_points[i];
+		if (weight_points[i] < min_weight)
+			min_weight = weight_points[i];
+	})
+	return d3.scale.linear().range([rCircle, 3*rCircle]).domain([min_weight, max_weight]);
+}
+
+function scaleOpacity() {
+	max_alpha = iterators[0].line.alpha;
+	min_alpha = iterators[0].line.alpha;
+	$.each(iterators, function(i){
+		if (iterators[i].line.alpha > max_alpha){
+			max_alpha = iterators[i].line.alpha;
+		}
+		if (iterators[i].line.alpha < min_alpha){
+			min_alpha = iterators[i].line.alpha;
+		}
+	});
+	return d3.scale.linear().range([.4,1]).domain([min_alpha,max_alpha]);
+}
+
 // play
 document.getElementById("btnPlay").addEventListener("click", function() {
 	if (current_state == states.start) {
@@ -335,7 +449,11 @@ document.getElementById("btnPlay").addEventListener("click", function() {
 	enableButtons();
 	
 	// run adaboost
+	max_nb_iterator = parseInt($("#txtNbIterators").val());
 	iterators = adaboost_func(data);
+	
+	// calculate scale of opacity for lines
+	oScale = scaleOpacity();
 		
     clearInterval(timer);
     speed = $("#speed").val();
@@ -361,6 +479,7 @@ document.getElementById("btnClear").addEventListener("click", function() {
 	clearInterval(timer);
 	enableButtons();
 	data = [];
+	lines = [];
     initialGraph();
 });
 
@@ -413,12 +532,17 @@ function reset(){
 		data[i].radius = rCircle;
 	})
 	
+	lines = [];
+	
 	initialGraph();
 
 	drawCircles();
 }
 
 $("#btnGenerateData").on('click', function () {
+	data = [];
+	reset();
+	
 	var nbPoints = $('#txtNumberPoint').val();
 	for(i = 0; i < nbPoints; i++){
 		x = Math.random() * max_x_axis;
@@ -433,7 +557,7 @@ $("#btnGenerateData").on('click', function () {
 	drawCircles();
 });
 
-function adaboost_func(dataset) {
+function adaboost_func(dataset) {	
 	// convert label & initial weight
 	weights = [];
 	$.each(dataset, function(i){
@@ -443,7 +567,7 @@ function adaboost_func(dataset) {
 	
 	iterators = [];
 	
-	for(i = 0; i < 5; i++){
+	for(i = 0; i < max_nb_iterator; i++){
 		// create simple classifier
 		classifier = simple_classifier(dataset, weights);
 					
@@ -452,7 +576,9 @@ function adaboost_func(dataset) {
 		
 		iterators.push({"iterator": (i+1),
             "size_of_points": weights,
-			"line": { "a": classifier.a, "b": classifier.b, "alpha": alpha}});
+			"line": { "a": classifier.a, "b": classifier.b, "alpha": alpha, 
+						"negative_region": classifier.negative_region,
+						"positive_region": classifier.positive_region}});
 		
 		// update sample weights
 		new_weights = [];
@@ -518,7 +644,16 @@ function simple_classifier(dataset, weights){
 	})
 	
 	// update true label
-	true_label_1 = count_predicted_labels[0][0] > count_predicted_labels[0][1] ? -1 : 1;
+	if (count_predicted_labels[0][0] > count_predicted_labels[0][1]){
+		true_label_1 = -1;
+		classiferResult.negative_region = color_point.blue;
+		classiferResult.positive_region = color_point.red;
+	} else {
+		true_label_1 = 1;
+		classiferResult.negative_region = color_point.red;
+		classiferResult.positive_region = color_point.blue;
+	}
+	
 	$.each(classiferResult.predicted_labels, function(i){
 		if (classiferResult.predicted_labels[i] == -2){
 			classiferResult.predicted_labels[i] = true_label_1;
